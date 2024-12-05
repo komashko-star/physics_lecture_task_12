@@ -312,6 +312,8 @@ function redraw() {
   let chartContext = chartObject.getContext('2d');
   chartContext.clearRect(0, 0, chartObject.width, chartObject.height);
 
+  drawEquipotentials(chartContext);
+
   dx = (border.x_domain - border.x_domain_start) / border.width * arrowDensity;
   dy = dx;
   for (let x = border.x_domain_start; x < border.x_domain; x += dx) {
@@ -335,7 +337,6 @@ function redraw() {
     chartContext.arc(i_0, j_0, radius, 0, 2 * Math.PI);
     chartContext.fill();
   }
-  drawEquipotentials(chartContext);
 }
 
 var cells = {};
