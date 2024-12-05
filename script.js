@@ -11,6 +11,7 @@ var color_gradient_finish = 40;
 var dontShowBound = 0;
 
 var border = null;
+var potentialStep = 1;
 
 const defaultChargeValues = [0, 0, 1, -9];
 
@@ -364,7 +365,7 @@ function drawEquipotentials(chartContext) {
       let [x, y] = canvasToModelCoords(i, j);
       let potential = calculateFieldPotential(x, y);
 
-      if (Math.abs(potential % 1) > 0.01) {
+      if (Math.abs(potential % potentialStep) > 0.01 * potentialStep) {
         continue;
       }
       
@@ -405,6 +406,12 @@ function collectData() {
     window.alert('Плотность стрелок не может быть неположительной');
     return;
   }
+
+  let potentialStep_ = parseInt(document.getElementById('potentialStep').value);
+  if (potentialStep_ <= 0) {
+    window.alert('Плотность эквипотенциальных поверхностей не может быть неположительной');
+    return;
+  }
   
   let dontShowBound_ = parseFloat(document.getElementById('dontshowbound').value);
   dontShowBound_ *= Math.pow(10, parseInt(document.getElementById('dontshowboundexp').value));
@@ -417,7 +424,7 @@ function collectData() {
   color_gradient_finish = parseFloat(document.getElementById('colorsq5value').value);
   color_gradient_finish *= Math.pow(10, parseInt(document.getElementById('colorsq5exp').value));
 
-  return [charges_, MAX_X_DOMAIN_, arrowDensity_, dontShowBound_];
+  return [charges_, MAX_X_DOMAIN_, arrowDensity_, dontShowBound_, potentialStep_];
 }
 
 
@@ -426,7 +433,7 @@ function reloadForm() {
   if (data == null) {
     return;
   }
-  let old_data = [charges, MAX_X_DOMAIN, arrowDensity, dontShowBound];
+  let old_data = [charges, MAX_X_DOMAIN, arrowDensity, dontShowBound, potentialStep];
   let are_equal = old_data.length === data.length && old_data.every(function(value, index) { return value === data[index]});
   if (are_equal){
     document.getElementById('curtain').style.visibility = 'visible';
@@ -434,7 +441,7 @@ function reloadForm() {
     document.getElementById('curtain').style.visibility = 'hidden';
     return;
   }
-  [charges, MAX_X_DOMAIN, arrowDensity, dontShowBound] = data;
+  [charges, MAX_X_DOMAIN, arrowDensity, dontShowBound, potentialStep] = data;
 
   document.getElementById('curtain').style.visibility = 'visible';
   reloadModel();
@@ -555,15 +562,8 @@ window.onload = () => {
   let ch = 1 / (k / 9);
 
   charges = [
-    [2, 2, ch],
-    [1, 2, ch],
-    [0, 2, ch],
-    [0, 1, ch],
-    [0, 0, ch],
-    [2, -2, ch],
-    [2, -1, ch],
-    [2, 0, ch],
-    [1, 0, ch],
+    [-0.5, 0, ch],
+    [0.5, 0, -2 * ch],
   ]
   updateChargesForm();
   reloadForm();
