@@ -95,6 +95,90 @@ function innerSizes(node) {
   return [width, height];
 }
 
+class Vec2 {
+  constructor(x, y) {
+    this.x = x;
+    this.y = y;
+  }
+}
+
+class Equipotential {
+  constructor(targetValue, potentialFunc) {
+    this.targetValue = targetValue;
+    this.potentialFunc = potentialFunc;
+    this.cells = {};
+  }
+
+  Search(startCell) {
+    let startNeighbors = [];
+    for (let d of [[0, 1], [0, -1], [-1, 0], [1, 0], [1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+      let newCell = [startCell[0] + d[0], startCell[1] + d[1]];
+      startNeighbors.push(newCell);
+    }
+
+    startNeighbors.sort((a, b) => {
+        let p1 = canvasToModelCoords(a[0], a[1]);
+        let p2 = canvasToModelCoords(b[0], b[1]);
+        let abs1 = Math.abs(this.targetValue - calculateFieldPotential(p1[0], p1[1]));
+        let abs2 = Math.abs(this.targetValue - calculateFieldPotential(p2[0], p2[1]));
+        return abs1 - abs2;
+      }
+    )
+
+    this.Add(new Vec2(startCell[0], startCell[1]));
+
+    while (true){
+      let neighbors = [];
+      for (let d of [[0, 1], [0, -1], [-1, 0], [1, 0], [1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+        let newCell = [startCell[0] + d[0], startCell[1] + d[1]];
+        neighbors.push(newCell);
+      }
+
+      neighbors.sort((a, b) => {
+          let p1 = canvasToModelCoords(a[0], a[1]);
+          let p2 = canvasToModelCoords(b[0], b[1]);
+          let abs1 = Math.abs(this.targetValue - calculateFieldPotential(p1[0], p1[1]));
+          let abs2 = Math.abs(this.targetValue - calculateFieldPotential(p2[0], p2[1]));
+          return abs1 - abs2;
+        }
+      )
+
+      let success = false;
+
+      let i = 0;
+      while (i < 4) {
+        if (!this.Exists(new Vec2(neighbors[i][0], neighbors[i][1]))) {
+          this.Add(new Vec2(neighbors[i][0], neighbors[i][1]));
+          if (0 <= neighbors[i][0] && neighbors[i][0] < border.width && 0 <= neighbors[i][1] && neighbors[i][1] < border.height) {
+            startCell = neighbors[i];
+          } else if (0 <= startNeighbors[1][0] && startNeighbors[1][0] < border.width && 0 <= startNeighbors[1][1] && startNeighbors[1][1] < border.height) {
+            startCell = startNeighbors[1];
+          }
+          success = true;
+          break;
+        }
+        i++
+      }
+      if (success) {
+        continue;
+      }
+      
+      break;
+    }
+  }
+
+  Exists(vec) {
+    return this.cells[vec.x] != undefined && this.cells[vec.x][vec.y] === 1;
+  }
+
+  Add(vec) {
+    if (!(vec.x in this.cells)) {
+      this.cells[vec.x] = {};
+    }
+    this.cells[vec.x][vec.y] = 1;
+  }
+}
+
 class Border {
   constructor(id){
     this.id = id;
@@ -157,6 +241,23 @@ function calculateFieldStrength(x, y) {
   return vector;
 }
 
+function calculateFieldPotential(x, y) {
+  let potential = 0;
+
+  for (var i = 0; i < charges.length; i++) {
+    let [x_q, y_q, q] = charges[i];
+
+    let r = [x - x_q, y - y_q];
+    let r_length = Math.hypot(r[0], r[1]);
+
+    let E_q = k * q / r_length;
+
+    potential += E_q;
+  }
+
+  return potential;
+}
+
 function drawVector(ctx, x, y, E_vector) {
   let arrowSize = 10;
   let E_vector_length = Math.hypot(E_vector[0], E_vector[1]);
@@ -198,6 +299,11 @@ function drawVector(ctx, x, y, E_vector) {
   ctx.fill();
 }
 
+function drawPoint(ctx, i, j) {
+  ctx.fillStyle = 'black';
+  ctx.fillRect(i, j, 1, 1);
+}
+
 function redraw() {
   let chartObject = document.getElementById('mainchart');
   createHiPPICanvas(chartObject, border.width, border.height);
@@ -228,8 +334,52 @@ function redraw() {
     chartContext.arc(i_0, j_0, radius, 0, 2 * Math.PI);
     chartContext.fill();
   }
+  drawEquipotentials(chartContext);
 }
 
+var cells = {};
+
+function Exists(i, j) {
+  return cells[i] != undefined && cells[i][j] === 1;
+}
+
+function Add(i, j) {
+  if (!(i in cells)) {
+    cells[i] = {};
+  }
+  cells[i][j] = 1;
+}
+
+
+function drawEquipotentials(chartContext) {
+  cells = {};
+
+
+  for (let i = 0; i < border.width; i++) {
+    for (let j = 0; j < border.height; j++) {      
+      if (Exists(i, j)) {
+        continue;
+      }
+
+      let [x, y] = canvasToModelCoords(i, j);
+      let potential = calculateFieldPotential(x, y);
+
+      if (Math.abs(potential % 1) > 0.01) {
+        continue;
+      }
+      
+      let equipotential = new Equipotential(potential);
+      equipotential.Search([i, j]);
+      for (let x0 in equipotential.cells) {
+        for (let y0 in equipotential.cells[x0]) {
+          drawPoint(chartContext, x0, y0);
+          Add(x0, y0);
+        }
+      }
+    }
+  }
+
+}
 
 function reloadModel() {
     objects = [];
@@ -302,7 +452,8 @@ function showEnergyValue(event) {
   
   shower.innerHTML = "(" + to_scientific_notation(x) + ' м, ' + to_scientific_notation(y) + " м)<br/>" + 
     "(" + to_scientific_notation(fieldStrength[0]) + ' В/м, ' + to_scientific_notation(fieldStrength[1]) + ' В/м)<br/>' + 
-    to_scientific_notation(fieldStrengthLength) + ' В/м';
+    to_scientific_notation(fieldStrengthLength) + ' В/м<br/>' + 
+    to_scientific_notation(calculateFieldPotential(x, y)) + ' В';
 
   let shower_width = getComputedStyle(shower).width;
   shower_width = +(shower_width.slice(0, shower_width.length - 2));
@@ -403,8 +554,17 @@ window.onload = () => {
 
   let ch = 1 / (k / 9);
 
-  addChargeForm();
-  
+  charges = [
+    [2, 2, ch],
+    [1, 2, ch],
+    [0, 2, ch],
+    [0, 1, ch],
+    [0, 0, ch],
+    [2, -2, ch],
+    [2, -1, ch],
+    [2, 0, ch],
+    [1, 0, ch],
+  ]
   updateChargesForm();
   reloadForm();
 
